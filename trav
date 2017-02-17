@@ -3,6 +3,7 @@
 import click
 import random
 import math
+import itertools
 
 
 passenger_rates = [
@@ -214,7 +215,8 @@ def cli(): pass
 @click.option('--destination', default=None, help="The types of the destination world, comma separated")
 @click.option("--staterooms", default=None)
 @click.option("--low-berths", default=None)
-def passengers(distance, dm, current, destination, staterooms, low_berths):
+@click.option("--steward-level", default=0)
+def passengers(distance, dm, current, destination, staterooms, low_berths, steward_level):
     """
     Helps calculate the number of passengers availiable for ferrying between two planets.
     """
@@ -296,6 +298,13 @@ def passengers(distance, dm, current, destination, staterooms, low_berths):
     optimized_staterooms = False
     optimized_low_berths = False
 
+    steward_level += 1 # account for lvl 0 counting as well
+
+    rates = passenger_rates[distance - 1]
+    high_rate = rates["high"]
+    med_rate = rates["middle"]
+    low_rate = rates["low"]
+
     if staterooms is not None:
         staterooms = int(staterooms)
         optimize = True
@@ -305,17 +314,35 @@ def passengers(distance, dm, current, destination, staterooms, low_berths):
         high_taken = 0
         med_taken = 0
 
-        while(taken < staterooms):
+        best_option = { 
+            "high": 0, 
+            "med": 0, 
+            "income": 0 
+        }
 
-            if(high_taken < high):
-                high_taken += 1
-                taken += 1
-            elif(med_taken < med):
-                med_taken += 1
-                taken += 1
-            else:
-                # no more staterooms left
-                break
+        for combo in itertools.combinations_with_replacement("hm ", steward_level):
+                m_count = combo.count("m") * 5
+                h_count = combo.count("h") * 2
+                
+                if(m_count > med ):  # if m*5 is more than there are, take all availiable
+                    m_count = med
+
+                if(h_count > high):
+                    h_count = high
+
+                income = (m_count * med_rate) + (h_count * high_rate)
+
+
+                if(best_option["income"] < income):
+                    best_option["income"] = income
+                    best_option["high"] = h_count
+                    best_option["med"] = m_count
+
+        high_taken = best_option["high"]
+        med_taken = best_option["med"]
+
+
+
 
     if low_berths is not None:
         low_berths = int(low_berths)
@@ -338,10 +365,8 @@ def passengers(distance, dm, current, destination, staterooms, low_berths):
         click.echo("")
         click.echo("Passenger Optimization:")
 
-        rates = passenger_rates[distance - 1]
-        high_rate = rates["high"]
-        med_rate = rates["middle"]
-        low_rate = rates["low"]
+
+
 
         if optimized_staterooms:
             high_sum = high_taken * high_rate
